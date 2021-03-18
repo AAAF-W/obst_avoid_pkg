@@ -1,5 +1,0 @@
-<launch>
-  
-  <node pkg="obst_avoid_pkg" type="vfh_node" name="vfh_node" output="screen"/>
-
-</launch>

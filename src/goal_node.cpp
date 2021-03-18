@@ -47,7 +47,8 @@ float d_safe = 0.45;   //可通行宽度的安全阈值
 #define STATE_READY              0
 #define STATE_GEN_TEMP_TARGET    1
 #define STATE_GOTO_TEMP_TARGET   2
-#define STATE_ARRIVED_TEMP_TARGET       3
+#define STATE_GOTO_GOAL          3
+#define STATE_ARRIVED_GOAL       4
 int state = STATE_READY;
 
 float value_ranges[360];
@@ -301,8 +302,8 @@ void lidarCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 
 int main(int argc, char** argv)
 {
-    ros::init(argc,argv,"vfh_node");
-    ROS_INFO("vfh_node start!");
+    ros::init(argc,argv,"goal_node");
+    ROS_INFO("goal_node start!");
 
     InitHelper();
     SetObjectTh(object_th);
@@ -362,13 +363,47 @@ int main(int argc, char** argv)
             if(sqrt(robot_target_x*robot_target_x + robot_target_y*robot_target_y) < 0.1)
             {
                 printf("到达临时目标点坐标，开始去往最终目标\n");
-                state = STATE_ARRIVED_TEMP_TARGET;
-                ROS_WARN("state ->  STATE_ARRIVED_TEMP_TARGET");
+                state = STATE_GOTO_GOAL;
+                ROS_WARN("state ->  STATE_GOTO_GOAL");
             }
             ShowVFH();
         }
 
-        if(state == STATE_ARRIVED_TEMP_TARGET)
+        if(state == STATE_GOTO_GOAL)
+        {
+            // 通过里程计tf获取目标点在机器人坐标系里的偏差值
+            tf::StampedTransform transform;
+            try{
+                tf_listener->lookupTransform("/base_footprint", "/goal", ros::Time(0), transform);
+            }
+            catch (tf::TransformException ex)
+            {
+                ROS_ERROR("%s",ex.what());
+                ros::Duration(0.5).sleep();
+            }
+            float robot_goal_x = transform.getOrigin().x();
+            float robot_goal_y = transform.getOrigin().y();
+            float robot_goal_theta = atan2(robot_goal_y, robot_goal_x);
+
+            geometry_msgs::Twist vel_cmd;
+            // printf("最终目标点相对于机器人坐标 ( %.2f , %.2f )朝向角度=  %.2f \n",robot_goal_x,robot_goal_y,robot_goal_theta);
+            vel_cmd.angular.z = 0.8 * robot_goal_theta;
+            if(fabs(robot_goal_theta) < 0.3)
+                vel_cmd.linear.x = 0.2;
+            else
+                vel_cmd.linear.x = 0.0;
+            vel_pub.publish(vel_cmd);
+
+            // 距离最终目标点足够近时，认为已经到达最终目标点
+            if(sqrt(robot_goal_x*robot_goal_x + robot_goal_y*robot_goal_y) < 0.1)
+            {
+                printf("到达最终目标！\n");
+                state = STATE_ARRIVED_GOAL;
+                ROS_WARN("state ->  STATE_ARRIVED_GOAL");
+            }
+        }
+
+        if(state == STATE_ARRIVED_GOAL)
         {
             // 通过里程计tf获取机器人当前的朝向角度
             tf::StampedTransform transform;
