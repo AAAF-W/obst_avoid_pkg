@@ -387,7 +387,7 @@ int main(int argc, char** argv)
             float robot_target_theta = atan2(robot_target_y, robot_target_x);
             // printf("临时目标点相对于机器人朝向角度=  %.2f \n",robot_target_theta);
             vel_cmd.angular.z = 0.5 * robot_target_theta;
-            if(fabs(robot_target_theta) < 0.2)
+            if(fabs(robot_target_theta) < 0.1)
                 vel_cmd.linear.x = 0.2;
             else
                 vel_cmd.linear.x = 0.0;
