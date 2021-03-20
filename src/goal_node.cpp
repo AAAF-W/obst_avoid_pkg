@@ -42,20 +42,23 @@
 #include <tf/transform_listener.h>
 #include <vfh_helper.h>
 
-float d_safe = 0.45;   //可通行宽度的安全阈值
+float forward_th = 1.4;  // 前方障碍物小于这个距离时启动VFH避障
+float d_safe = 0.45;         // 可通行宽度的安全阈值
+float object_th = 2;     // 障碍物检测距离
 
 #define STATE_READY              0
-#define STATE_GEN_TEMP_TARGET    1
-#define STATE_GOTO_TEMP_TARGET   2
-#define STATE_GOTO_GOAL          3
-#define STATE_ARRIVED_GOAL       4
+#define STATE_FORWARD             1
+#define STATE_GEN_TEMP_TARGET    2
+#define STATE_GOTO_TEMP_TARGET   3
+#define STATE_GOTO_GOAL          4
+#define STATE_ARRIVED_GOAL       5
 int state = STATE_READY;
 
 float value_ranges[360];
-float object_th = 3.0;
 stGap gap[180];
 ros::Publisher vel_pub;
 tf::TransformListener* tf_listener;
+int nFrontIndex = 180;
 
 // VFH生成临时目标点
 void GenTempTarget(float* inRanges,  float& outTargetAngle, float& outTargetR)
@@ -288,6 +291,7 @@ void lidarCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 {
     int nNum = scan->ranges.size();
     // ROS_WARN("[lidarCallback] nNum = %d",nNum);
+    nFrontIndex = nNum/2;
     for(int i=0;i<360;i++)
     {
         value_ranges[i] = scan->ranges[i];
@@ -295,8 +299,8 @@ void lidarCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     
     if(state == STATE_READY)
     {
-        state = STATE_GEN_TEMP_TARGET;
-        ROS_WARN("state ->  STATE_GEN_TEMP_TARGET");
+        state = STATE_FORWARD;
+        ROS_WARN("state ->  STATE_FORWARD");
     }
 }
 
@@ -321,15 +325,51 @@ int main(int argc, char** argv)
     ros::Rate loop_rate(30);
     while( ros::ok())
     {
+
+        if(state == STATE_FORWARD)
+        {
+            geometry_msgs::Twist vel_cmd;
+            vel_cmd.angular.z = 0;
+            vel_cmd.linear.x = 0.1;
+            int front_offset = 5;
+            float front_range = value_ranges[nFrontIndex- front_offset];
+            for(int i=nFrontIndex- front_offset ; i < nFrontIndex+ front_offset; i++)
+            {
+                if(value_ranges[i] < front_range)
+                    front_range = value_ranges[i];
+            }
+            printf("前方障碍物距离= %.2f 米\n",front_range);
+            if(front_range < forward_th)
+            {
+                // 前方障碍物足够近了，启动VFH避障
+                vel_cmd.linear.x = 0.0;
+                state = STATE_GEN_TEMP_TARGET;
+                ROS_WARN("state ->  STATE_GEN_TEMP_TARGET");
+            } 
+            vel_pub.publish(vel_cmd);
+        }
+
         if(state == STATE_GEN_TEMP_TARGET)
         {
             // 将VFH和阈值线显示在窗口中
             SetRanges(value_ranges );
             GenTempTarget(value_ranges , temp_target_theta , temp_target_R);
             printf("临时目标点角度 =  %.2f   探测步长R = %.2f\n",temp_target_theta,temp_target_R);
-            temp_target_x = temp_target_R*sin(temp_target_theta);
-            temp_target_y = -temp_target_R*cos(temp_target_theta);
-            printf("临时目标点坐标  ( %.2f , %.2f )\n",temp_target_x,temp_target_y);
+           // 获取机器人此时的里程计坐标
+            tf::StampedTransform transform;
+            try{
+                tf_listener->lookupTransform("/odom", "/base_footprint", ros::Time(0), transform);
+            }
+            catch (tf::TransformException ex)
+            {
+                ROS_ERROR("%s",ex.what());
+                ros::Duration(1.0).sleep();
+            }
+            float odom_robot_x = transform.getOrigin().x();
+            float odom_robot_y = transform.getOrigin().y();
+            temp_target_x = temp_target_R*sin(temp_target_theta) + odom_robot_x;
+            temp_target_y = -temp_target_R*cos(temp_target_theta) + odom_robot_y;
+            printf("机器人里程计坐标 ( %.2f , %.2f ) - 临时目标点坐标  ( %.2f , %.2f )\n",odom_robot_x,odom_robot_y,temp_target_x,temp_target_y);
             state = STATE_GOTO_TEMP_TARGET;
             ROS_WARN("state ->  STATE_GOTO_TEMP_TARGET");
         }
@@ -349,7 +389,7 @@ int main(int argc, char** argv)
             float robot_target_theta = atan2(robot_target_y, robot_target_x);
             // printf("临时目标点相对于机器人朝向角度=  %.2f \n",robot_target_theta);
             vel_cmd.angular.z = 0.5 * robot_target_theta;
-            if(fabs(robot_target_theta) < 0.3)
+            if(fabs(robot_target_theta) < 0.1)
                 vel_cmd.linear.x = 0.2;
             else
                 vel_cmd.linear.x = 0.0;

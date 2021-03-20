@@ -367,7 +367,7 @@ int main(int argc, char** argv)
             float odom_robot_y = transform.getOrigin().y();
             temp_target_x = temp_target_R*sin(temp_target_theta) + odom_robot_x;
             temp_target_y = -temp_target_R*cos(temp_target_theta) + odom_robot_y;
-            // printf("机器人里程计坐标 ( %.2f , %.2f ) - 临时目标点坐标  ( %.2f , %.2f )\n",odom_robot_x,odom_robot_y,temp_target_x,temp_target_y);
+            printf("机器人里程计坐标 ( %.2f , %.2f ) - 临时目标点坐标  ( %.2f , %.2f )\n",odom_robot_x,odom_robot_y,temp_target_x,temp_target_y);
             state = STATE_GOTO_TEMP_TARGET;
             ROS_WARN("state ->  STATE_GOTO_TEMP_TARGET");
         }
