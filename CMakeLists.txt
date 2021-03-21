@@ -231,3 +231,11 @@ add_dependencies(goal_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED
 target_link_libraries(goal_node
   ${catkin_LIBRARIES} ${OpenCV_LIBS}
 )
+
+add_executable(exam_node
+  src/exam_node.cpp
+)
+add_dependencies(exam_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(exam_node
+  ${catkin_LIBRARIES} ${OpenCV_LIBS}
+)
