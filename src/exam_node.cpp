@@ -55,6 +55,7 @@ float value_ranges[360];
 ros::Publisher vel_pub;
 tf::TransformListener* tf_listener;
 int nFrontIndex = 180;
+int flag_turn = -1;
 
 // 生成临时目标点
 void GenTempTarget(float* inRanges,  float& outLinear, float& outAngular)
@@ -98,11 +99,6 @@ void GenTempTarget(float* inRanges,  float& outLinear, float& outAngular)
         {
             if(value_ranges[i] < front_range)
                 front_range = value_ranges[i];
-        }
-        if(front_range > forward_th)
-        {
-            outLinear = 0.1;
-            outAngular = 0.0;
         }
     }
 }
@@ -171,9 +167,29 @@ int main(int argc, char** argv)
             float linear,angular;
             GenTempTarget(value_ranges , linear , angular);
 
+            // 通过里程计tf获取机器人当前的朝向角度
+            tf::StampedTransform transform;
+            try{
+                tf_listener->lookupTransform("/odom", "/base_footprint", ros::Time(0), transform);
+            }
+            catch (tf::TransformException ex)
+            {
+                ROS_ERROR("%s",ex.what());
+                ros::Duration(0.5).sleep();
+            }
+            tf::Quaternion q(transform.getRotation().x(), transform.getRotation().y(), transform.getRotation().z(), transform.getRotation().w());
+            double roll, pitch, yaw;
+            tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
+            printf("机器人朝向角度=  %.2f \n",yaw);
+            if(yaw > 0.8)
+                flag_turn = -1;
+            if(yaw < -0.8)
+                flag_turn = 1;
+
             geometry_msgs::Twist vel_cmd;
             vel_cmd.linear.x = linear;
-            vel_cmd.angular.z = angular;
+            vel_cmd.angular.z = angular * flag_turn;
+            printf("vel_cmd.angular.z =  %.2f \n",vel_cmd.angular.z);
             vel_pub.publish(vel_cmd);
             if(linear > 0)
             {
@@ -191,22 +207,14 @@ int main(int argc, char** argv)
             // 根据临时目标点计算自己的移动速度
             geometry_msgs::Twist vel_cmd;
             float robot_target_theta = atan2(robot_target_y, robot_target_x);
-            // printf("临时目标点相对于机器人朝向角度=  %.2f \n",robot_target_theta);
-            vel_cmd.angular.z = 0.5 * robot_target_theta;
+            printf("临时目标点相对于机器人朝向角度=  %.2f \n",robot_target_theta);
+            vel_cmd.angular.z = 0.5 * robot_target_theta ;
             if(fabs(robot_target_theta) < 0.1)
                 vel_cmd.linear.x = 0.2;
             else
                 vel_cmd.linear.x = 0.0;
 
             vel_pub.publish(vel_cmd);
-
-            // 距离临时目标点足够近时，认为已经到达临时目标点，转向最终目标点行驶
-            if(sqrt(robot_target_x*robot_target_x + robot_target_y*robot_target_y) < 0.1)
-            {
-                printf("到达临时目标点坐标，开始去往最终目标\n");
-                state = STATE_ARRIVED_TEMP_TARGET;
-                ROS_WARN("state ->  STATE_ARRIVED_TEMP_TARGET");
-            }
         }
 
         if(state == STATE_ARRIVED_TEMP_TARGET)
