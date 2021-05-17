@@ -247,3 +247,11 @@ add_dependencies(behavior_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPO
 target_link_libraries(behavior_node
   ${catkin_LIBRARIES} ${OpenCV_LIBS}
 )
+
+add_executable(entrance_node
+  src/entrance_node.cpp
+)
+add_dependencies(entrance_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(entrance_node
+  ${catkin_LIBRARIES} ${OpenCV_LIBS}
+)

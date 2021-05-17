@@ -1,0 +1,33 @@
+<launch>
+ 
+  <arg name="goal_x" value="3"/>
+  <arg name="goal_y" value="0"/>
+
+  <!-- We resume the logic in empty_world.launch, changing only the name of the world to be launched -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find wpb_home_simulator)/worlds/scene_obstacles_1.world"/>
+    <arg name="paused" value="false"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="true"/>
+    <arg name="recording" value="false"/>
+    <arg name="debug" value="false"/>
+  </include>
+
+  <!-- target -->
+  <node pkg="tf" type="static_transform_publisher" name="goal_odom_tf" args="$(arg goal_x) $(arg goal_y) 0 0 0 0 1 odom goal 20" />
+
+  <!-- Spawn the objects into Gazebo -->
+  <node name="wall_left" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpb_home_simulator)/models/walls/wall_2.model -x -0.5 -y 1.5 -z 0.2 -Y 0 -urdf -model wall_left" />
+  <node name="wall_right" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpb_home_simulator)/models/walls/wall_2.model -x -0.5 -y -1.5 -z 0.2 -Y 0 -urdf -model wall_right" />
+
+  <node name="wall_left_front" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpb_home_simulator)/models/walls/wall_1.model -x 1.5 -y 0.3 -z 0.2 -Y -1.3 -urdf -model wall_left_front" />
+  <node name="wall_right_front" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpb_home_simulator)/models/walls/wall_1.model -x 1.2 -y -1.0 -z 0.2 -Y 1.0 -urdf -model wall_right_front" />
+
+  <node name="flag_goal" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpb_home_simulator)/models/flags/flag_cylinder_green.model -x $(arg goal_x) -y  $(arg goal_y) -z 1 -Y 0 -urdf -model flag_goal" />
+
+  <!-- Spawn a robot into Gazebo -->
+  <node name="spawn_urdf" pkg="gazebo_ros" type="spawn_model" args="-file $(find wpb_home_simulator)/models/wpb_home_lidar.model -x 0 -y 0 -z 0 -Y 0 -urdf -model wpb_home" />
+
+  <node pkg="obst_avoid_pkg" type="entrance_node" name="entrance_node" output="screen"/>
+
+</launch>
